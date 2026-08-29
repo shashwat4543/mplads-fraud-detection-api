@@ -1,27 +1,24 @@
-# Stage 1: Build the JAR with Maven
+# Stage 1: Build JAR with Maven
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /app
 
-# Copy Maven wrapper & project definition
+# Copy Maven wrapper & project configuration
 COPY pom.xml .
 COPY .mvn .mvn
 COPY mvnw .
 
-# Copy source code and preloaded CSV data
+# Copy source code and files
 COPY src src
 
-# Make Maven wrapper executable and build package
+# Build package
 RUN chmod +x ./mvnw && ./mvnw clean package -DskipTests
 
-# Stage 2: Minimal Runtime Image
+# Stage 2: Production Runtime
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Copy JAR from build stage
 COPY --from=build /app/target/*.jar app.jar
 
-# Expose port (matches Render default)
 EXPOSE 8080
 
-# Run Spring Boot configured for production port
 ENTRYPOINT ["java", "-Xms128m", "-Xmx384m", "-XX:+UseG1GC", "-Dserver.port=${PORT:8080}", "-jar", "app.jar"]
