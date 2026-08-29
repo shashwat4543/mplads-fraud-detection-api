@@ -9,8 +9,6 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
 
 @Component
@@ -33,50 +31,37 @@ public class DataAutoLoader implements CommandLineRunner {
     @Override
     public void run(String... args) {
         try {
-            log.info("Checking for CSV data files on boot...");
+            log.info("==> [STARTUP] Beginning automated data bootstrap...");
 
-            // 1. Ingest Projects CSV (checks classpath resources first, then project root)
-            InputStream projStream = getInputStream("data/all_india_mplads_projects.csv", "all_india_mplads_projects.csv");
-            if (projStream != null) {
-                try (projStream) {
-                    csvImportService.importCsv(projStream);
-                    log.info("Projects CSV auto-ingested successfully.");
+            // 1. Load Main Projects CSV from resources/data/
+            ClassPathResource projectResource = new ClassPathResource("data/all_india_mplads_projects.csv");
+            if (projectResource.exists()) {
+                try (InputStream is = projectResource.getInputStream()) {
+                    csvImportService.importCsv(is); // Calls importCsv(InputStream)
+                    log.info("==> [STARTUP] Projects CSV imported successfully.");
                 }
             } else {
-                log.warn("Projects CSV not found in classpath (data/) or root directory.");
+                log.warn("==> [STARTUP] data/all_india_mplads_projects.csv not found.");
             }
 
-            // 2. Ingest Summary CSV
-            InputStream sumStream = getInputStream("data/result.csv", "result.csv");
-            if (sumStream != null) {
-                try (sumStream) {
-                    summaryImportService.importSummaryCsv(sumStream);
-                    log.info("Summary CSV auto-ingested successfully.");
+            // 2. Load Summary CSV from resources/data/
+            ClassPathResource summaryResource = new ClassPathResource("data/result.csv");
+            if (summaryResource.exists()) {
+                try (InputStream is = summaryResource.getInputStream()) {
+                    summaryImportService.importSummaryCsv(is); // Calls summary import service
+                    log.info("==> [STARTUP] Summary CSV imported successfully.");
                 }
             } else {
-                log.warn("Summary CSV not found in classpath (data/) or root directory.");
+                log.warn("==> [STARTUP] data/result.csv not found.");
             }
 
-            // 3. Run Rules Engine
-            var anomalies = anomalyDetectionService.runRulesEngine();
-            log.info("Startup scan complete. Indexed {} anomalies into H2 database.", anomalies.size());
+            // 3. Trigger Anomaly Rules Engine
+            log.info("==> [STARTUP] Running Anomaly Detection scan...");
+            anomalyDetectionService.runRulesEngine(); // Calls detectAnomalies() or runAnomalyDetection()
+            log.info("==> [STARTUP] Anomaly Scan complete.");
 
         } catch (Exception e) {
-            log.error("DataAutoLoader error during startup: {}", e.getMessage(), e);
+            log.error("==> [STARTUP] Automated loading failed: ", e);
         }
-    }
-
-    private InputStream getInputStream(String classpathRelPath, String rootFallbackPath) {
-        try {
-            ClassPathResource res = new ClassPathResource(classpathRelPath);
-            if (res.exists()) {
-                return res.getInputStream();
-            }
-            File rootFile = new File(rootFallbackPath);
-            if (rootFile.exists()) {
-                return new FileInputStream(rootFile);
-            }
-        } catch (Exception ignored) {}
-        return null;
     }
 }
