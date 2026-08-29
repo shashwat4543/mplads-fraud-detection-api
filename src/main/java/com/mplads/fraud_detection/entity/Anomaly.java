@@ -1,5 +1,6 @@
 package com.mplads.fraud_detection.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -34,6 +35,10 @@ public class Anomaly {
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
+    // FIX: JSON key is now "ruleCode" to match API_DOCUMENTATION.md and the frontend,
+    // which both expect `ruleCode`. The Java field/column name (anomalyType) is
+    // unchanged, so no DB migration or internal logic elsewhere needs to change.
+    @JsonProperty("ruleCode")
     public String getAnomalyType() { return anomalyType; }
     public void setAnomalyType(String anomalyType) { this.anomalyType = anomalyType; }
 

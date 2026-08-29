@@ -54,6 +54,10 @@ public class CsvImportService {
                 String state = getField(record, "state", "Unknown");
                 String house = getField(record, "house", "Unknown");
 
+                // NOTE: neither source CSV contains a real political-party column.
+                // "house" (Lok Sabha / Rajya Sabha) is stored here as a stand-in until
+                // a genuine party data source is available. Treat MP.getParty() as
+                // "house" for now — see API_DOCUMENTATION.md note.
                 String key = mpName + "|" + constituency;
                 MP mp = mpCache.computeIfAbsent(key, k ->
                         mpRepository.findByNameAndConstituency(mpName, constituency)
@@ -63,7 +67,6 @@ public class CsvImportService {
                 Project project = new Project();
                 project.setProjectCode(getField(record, "workId", getField(record, "_id", "PRJ-" + UUID.randomUUID().toString().substring(0, 8))));
 
-                // Exact title mapping from workDescription
                 String title = getField(record, "workDescription", "Work Proposal");
                 project.setTitle(title);
 
@@ -75,9 +78,19 @@ public class CsvImportService {
                 BigDecimal paidAmount = parseBigDecimal(getField(record, "totalPaid", "0"));
 
                 project.setRecommendedAmount(recAmount);
-                // If finalAmount is 0 or unassigned, use recommendedAmount as sanctioned budget baseline
-                project.setSanctionedAmount(finAmount.compareTo(BigDecimal.ZERO) > 0 ? finAmount : recAmount);
-                project.setExpenditureAmount(paidAmount);
+
+                // FIX: the raw dataset has two disjoint schemas merged together.
+                // "recommended"-status rows populate recommendedAmount/totalPaid.
+                // "completed"-status rows populate ONLY finalAmount — recommendedAmount
+                // and totalPaid are blank (not genuinely zero) for those rows.
+                // Falling back to finalAmount for BOTH sanctioned and expenditure when the
+                // primary field is missing avoids false "zero expenditure" flags on every
+                // completed project.
+                BigDecimal sanctioned = recAmount.compareTo(BigDecimal.ZERO) > 0 ? recAmount : finAmount;
+                project.setSanctionedAmount(sanctioned);
+
+                BigDecimal expenditure = paidAmount.compareTo(BigDecimal.ZERO) > 0 ? paidAmount : finAmount;
+                project.setExpenditureAmount(expenditure);
 
                 project.setRecommendationDate(parseIsoDate(getField(record, "recommendationDate", null)));
                 project.setSanctionDate(parseIsoDate(getField(record, "date", null)));
@@ -115,7 +128,6 @@ public class CsvImportService {
     private LocalDate parseIsoDate(String val) {
         if (val == null || val.isBlank()) return null;
         try {
-            // Handles 2026-08-26T00:00:00.000Z or standard YYYY-MM-DD
             String datePart = val.trim().substring(0, 10);
             return LocalDate.parse(datePart);
         } catch (Exception e) {

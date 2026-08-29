@@ -48,16 +48,20 @@ public class SummaryImportService {
                                 mpName,
                                 constituency,
                                 getField(record, "data__state", "Unknown"),
-                                getField(record, "data__party", getField(record, "data__house", "Unknown"))
+                                getField(record, "data__house", "Unknown")
                         ));
 
-                mp.setAllocatedAmount(parseBigDecimal(getField(record, "data__totalAllocated", getField(record, "allocatedAmount", "0"))));
-                mp.setTotalExpenditure(parseBigDecimal(getField(record, "data__totalExpenditure", getField(record, "totalExpenditure", "0"))));
-                mp.setUtilizationPercentage(parseDouble(getField(record, "data__utilizationPercentage", getField(record, "utilizationPercentage", "0"))));
-                mp.setCompletedWorksCount(parseInt(getField(record, "data__completedWorks", "0")));
-                mp.setRecommendedWorksCount(parseInt(getField(record, "data__recommendedWorks", "0")));
-                mp.setCompletionRate(parseDouble(getField(record, "data__completionPercentage", "0")));
-                mp.setUnspentAmount(parseBigDecimal(getField(record, "data__unspentBalance", getField(record, "unspentAmount", "0"))));
+                // FIX: these column names now match the actual result.csv header exactly.
+                // Previously looked for data__totalAllocated / data__completedWorks /
+                // data__recommendedWorks / data__completionPercentage / data__unspentBalance,
+                // none of which exist — every value silently fell back to 0.
+                mp.setAllocatedAmount(parseBigDecimal(getField(record, "data__allocatedAmount", "0")));
+                mp.setTotalExpenditure(parseBigDecimal(getField(record, "data__totalExpenditure", "0")));
+                mp.setUtilizationPercentage(parseDouble(getField(record, "data__utilizationPercentage", "0")));
+                mp.setCompletedWorksCount(parseInt(getField(record, "data__completedWorksCount", "0")));
+                mp.setRecommendedWorksCount(parseInt(getField(record, "data__recommendedWorksCount", "0")));
+                mp.setCompletionRate(parseDouble(getField(record, "data__completionRate", "0")));
+                mp.setUnspentAmount(parseBigDecimal(getField(record, "data__unspentAmount", "0")));
 
                 mpRepository.save(mp);
             }
