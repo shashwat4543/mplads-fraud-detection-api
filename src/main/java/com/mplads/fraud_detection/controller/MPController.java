@@ -63,7 +63,20 @@ public class MPController {
             return ResponseEntity.ok(new MPDashboardDTO(mp, totalWorks, mpAnomalies.size(), highCount, mediumCount));
         }).orElse(ResponseEntity.notFound().build());
     }
+    // Get Paginated List of All MPs
+    @GetMapping
+    public ResponseEntity<Page<MP>> getAllMPs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by("name").ascending());
+        return ResponseEntity.ok(mpRepository.findAll(pageable));
+    }
 
+    // Get Anomalies for a specific MP
+    @GetMapping("/{mpId}/anomalies")
+    public ResponseEntity<List<Anomaly>> getMPAnomalies(@PathVariable Long mpId) {
+        return ResponseEntity.ok(anomalyRepository.findByRelatedMpId(mpId));
+    }
     // 3. Paginated Projects with Anomaly Flags & Reasons
     @GetMapping("/{mpId}/projects")
     public ResponseEntity<Page<ProjectAnomalyDTO>> getPaginatedProjects(
