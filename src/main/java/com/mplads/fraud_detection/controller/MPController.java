@@ -126,10 +126,16 @@ public class MPController {
                 .limit(20)
                 .collect(Collectors.toSet());
 
+        // Breakdown of anomaly counts by rule type — quick way to confirm every rule
+        // is actually firing, independent of how the feed endpoint sorts/paginates.
+        Map<String, Long> anomalyTypeBreakdown = anomalyRepository.findAll().stream()
+                .collect(Collectors.groupingBy(Anomaly::getAnomalyType, Collectors.counting()));
+
         return Map.of(
                 "totalProjectsInDB", totalProjects,
                 "rawCostOverrunCount", overruns,
                 "distinctStatusSample", sampleStatuses,
+                "anomalyTypeBreakdown", anomalyTypeBreakdown,
                 "firstSampleProject", sample.isEmpty() ? "DB IS EMPTY" : sample.get(0)
         );
     }
