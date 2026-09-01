@@ -108,28 +108,31 @@ public class MPController {
     @GetMapping("/anomalies")
     public ResponseEntity<Page<Anomaly>> getAllAnomalies(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String severity,
+            @RequestParam(required = false) String ruleCode) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("id").descending());
-        return ResponseEntity.ok(anomalyRepository.findAll(pageable));
+        return ResponseEntity.ok(anomalyRepository.findByFilters(severity, ruleCode, pageable));
     }
     @GetMapping("/debug-stats")
     public Map<String, Object> getDebugStats() {
-        List<Project> sample = projectRepository.findAll().stream().limit(10).toList();
+        // FIX: previously called projectRepository.findAll() THREE times and
+        // anomalyRepository.findAll() once — loading 165,000+ full entities into
+        // Java memory on every single call to this endpoint. Since the frontend's
+        // Landing Page hits this on load, that was a severe, repeatable memory
+        // spike independent of the startup scan we already fixed. Every value
+        // below is now computed at the database level instead.
+        Page<Project> samplePage = projectRepository.findAll(PageRequest.of(0, 10));
+        List<Project> sample = samplePage.getContent();
+
         long totalProjects = projectRepository.count();
-        long overruns = projectRepository.findAll().stream()
-                .filter(p -> p.getExpenditureAmount() != null && p.getSanctionedAmount() != null && p.getExpenditureAmount().compareTo(p.getSanctionedAmount()) > 0)
-                .count();
+        long overruns = projectRepository.countCostOverruns();
+        List<String> sampleStatuses = projectRepository.findDistinctStatuses();
 
-        Set<String> sampleStatuses = projectRepository.findAll().stream()
-                .map(Project::getStatus)
-                .filter(Objects::nonNull)
-                .limit(20)
-                .collect(Collectors.toSet());
-
-        // Breakdown of anomaly counts by rule type — quick way to confirm every rule
-        // is actually firing, independent of how the feed endpoint sorts/paginates.
-        Map<String, Long> anomalyTypeBreakdown = anomalyRepository.findAll().stream()
-                .collect(Collectors.groupingBy(Anomaly::getAnomalyType, Collectors.counting()));
+        Map<String, Long> anomalyTypeBreakdown = new LinkedHashMap<>();
+        for (Object[] row : anomalyRepository.countByAnomalyType()) {
+            anomalyTypeBreakdown.put((String) row[0], (Long) row[1]);
+        }
 
         return Map.of(
                 "totalProjectsInDB", totalProjects,
