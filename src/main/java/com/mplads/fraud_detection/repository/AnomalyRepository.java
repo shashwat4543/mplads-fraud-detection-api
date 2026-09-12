@@ -25,4 +25,11 @@ public interface AnomalyRepository extends JpaRepository<Anomaly, Long> {
             "(:severity IS NULL OR a.severity = :severity) AND " +
             "(:ruleCode IS NULL OR a.anomalyType = :ruleCode)")
     Page<Anomaly> findByFilters(@Param("severity") String severity, @Param("ruleCode") String ruleCode, Pageable pageable);
+
+    // One grouped query for constituency/MP analytics — avoids calling
+    // findByRelatedMpId per MP in a loop (~800 separate queries), which is the
+    // exact pattern that crashed the State Explorer feature earlier.
+    @Query("SELECT a.relatedMpId, COUNT(a), SUM(CASE WHEN a.severity = 'HIGH' THEN 1L ELSE 0L END) " +
+            "FROM Anomaly a WHERE a.relatedMpId IS NOT NULL GROUP BY a.relatedMpId")
+    List<Object[]> aggregateByMp();
 }
