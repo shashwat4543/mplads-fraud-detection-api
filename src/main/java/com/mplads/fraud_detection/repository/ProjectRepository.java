@@ -22,4 +22,11 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 
     @Query("SELECT DISTINCT p.status FROM Project p WHERE p.status IS NOT NULL")
     List<String> findDistinctStatuses();
+
+    // For constituency/MP-level analytics: one grouped query covering every MP's
+    // project totals at once, instead of looping and calling countByMp_Id per MP
+    // (that per-MP-loop pattern is what crashed the State Explorer feature earlier).
+    @Query("SELECT p.mp.id, COUNT(p), COALESCE(SUM(p.sanctionedAmount), 0), COALESCE(SUM(p.expenditureAmount), 0) " +
+            "FROM Project p WHERE p.mp IS NOT NULL GROUP BY p.mp.id")
+    List<Object[]> aggregateByMp();
 }

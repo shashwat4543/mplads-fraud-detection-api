@@ -10,6 +10,7 @@ import com.mplads.fraud_detection.repository.AnomalyRepository;
 import com.mplads.fraud_detection.repository.MPRepository;
 import com.mplads.fraud_detection.repository.ProjectRepository;
 import com.mplads.fraud_detection.service.AnomalyDetectionService;
+import com.mplads.fraud_detection.service.RiskScoringService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -29,15 +30,18 @@ public class MPController {
     private final ProjectRepository projectRepository;
     private final AnomalyDetectionService anomalyDetectionService;
     private final AnomalyRepository anomalyRepository;
+    private final RiskScoringService riskScoringService;
 
     public MPController(MPRepository mpRepository,
                         ProjectRepository projectRepository,
                         AnomalyDetectionService anomalyDetectionService,
-                        AnomalyRepository anomalyRepository) {
+                        AnomalyRepository anomalyRepository,
+                        RiskScoringService riskScoringService) {
         this.mpRepository = mpRepository;
         this.projectRepository = projectRepository;
         this.anomalyDetectionService = anomalyDetectionService;
         this.anomalyRepository = anomalyRepository;
+        this.riskScoringService = riskScoringService;
     }
 
     // 1. Search MP by name or constituency
@@ -91,7 +95,8 @@ public class MPController {
         List<ProjectAnomalyDTO> dtoList = new ArrayList<>();
         for (Project p : projectPage.getContent()) {
             List<Anomaly> anomalies = anomalyRepository.findByRelatedProjectId(p.getId());
-            dtoList.add(new ProjectAnomalyDTO(p, !anomalies.isEmpty(), anomalies));
+            Map<String, Object> risk = riskScoringService.score(p, anomalies);
+            dtoList.add(new ProjectAnomalyDTO(p, !anomalies.isEmpty(), anomalies, risk));
         }
 
         Page<ProjectAnomalyDTO> responsePage = new PageImpl<>(dtoList, pageable, projectPage.getTotalElements());
