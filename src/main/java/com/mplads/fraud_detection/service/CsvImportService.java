@@ -7,6 +7,8 @@ import com.mplads.fraud_detection.repository.ProjectRepository;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,6 +23,8 @@ import java.util.*;
 
 @Service
 public class CsvImportService {
+
+    private static final Logger log = LoggerFactory.getLogger(CsvImportService.class);
 
     private final MPRepository mpRepository;
     private final ProjectRepository projectRepository;
@@ -39,6 +43,7 @@ public class CsvImportService {
     public void importCsv(InputStream inputStream) throws Exception {
         Map<String, MP> mpCache = new HashMap<>();
         List<Project> batchList = new ArrayList<>();
+        int totalImported = 0;
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
              CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.builder()
@@ -54,10 +59,6 @@ public class CsvImportService {
                 String state = getField(record, "state", "Unknown");
                 String house = getField(record, "house", "Unknown");
 
-                // NOTE: neither source CSV contains a real political-party column.
-                // "house" (Lok Sabha / Rajya Sabha) is stored here as a stand-in until
-                // a genuine party data source is available. Treat MP.getParty() as
-                // "house" for now — see API_DOCUMENTATION.md note.
                 String key = mpName + "|" + constituency;
                 MP mp = mpCache.computeIfAbsent(key, k ->
                         mpRepository.findByNameAndConstituency(mpName, constituency)
@@ -79,13 +80,6 @@ public class CsvImportService {
 
                 project.setRecommendedAmount(recAmount);
 
-                // FIX: the raw dataset has two disjoint schemas merged together.
-                // "recommended"-status rows populate recommendedAmount/totalPaid.
-                // "completed"-status rows populate ONLY finalAmount — recommendedAmount
-                // and totalPaid are blank (not genuinely zero) for those rows.
-                // Falling back to finalAmount for BOTH sanctioned and expenditure when the
-                // primary field is missing avoids false "zero expenditure" flags on every
-                // completed project.
                 BigDecimal sanctioned = recAmount.compareTo(BigDecimal.ZERO) > 0 ? recAmount : finAmount;
                 project.setSanctionedAmount(sanctioned);
 
@@ -101,12 +95,16 @@ public class CsvImportService {
                 batchList.add(project);
                 if (batchList.size() >= 1000) {
                     projectRepository.saveAll(batchList);
+                    totalImported += batchList.size();
+                    log.info("==> [IMPORT] {} rows imported so far...", totalImported);
                     batchList.clear();
                 }
             }
             if (!batchList.isEmpty()) {
                 projectRepository.saveAll(batchList);
+                totalImported += batchList.size();
             }
+            log.info("==> [IMPORT] Finished. Total rows imported: {}", totalImported);
         }
     }
 
